@@ -1,0 +1,33 @@
+%META:TOPICINFO{author="ProjectContributor" date="1426439233" format="1.1" version="1"}%
+%META:TOPICPARENT{name="Plugins"}%
+<!--
+One line description, required for extensions repository catalog.
+   * Set SHORTDESCRIPTION = %$SHORTDESCRIPTION%
+-->
+---+!! MultiSearchPlugin
+
+%SHORTDESCRIPTION%
+
+%TOC%
+
+
+---++ Installation
+
+%$INSTALL_INSTRUCTIONS%
+
+---++ Plugin Info
+
+|  Change History: | <!-- versions below in reverse order -->&nbsp; |
+|  1.0 | Initial release |
+|  Dependencies: | %$DEPENDENCIES% | 
+
+
+%META:FORM{name="PackageForm"}%
+%META:FIELD{name="Author" title="Author" value="KennethLavrsen"}%
+%META:FIELD{name="Version" title="Version" value="%$VERSION%"}%
+%META:FIELD{name="Release" title="Release" value="%$RELEASE%"}%
+%META:FIELD{name="Copyright" value="%$CREATEDYEAR%, KennethLavrsen, All Rights Reserved"}%
+%META:FIELD{name="License" value="GPL ([[http://www.gnu.org/copyleft/gpl.html][GNU General Public License]])"}%
+%META:FIELD{name="Repository" value="https://github.com/foswiki/%$ROOTMODULE%"}%
+%META:FIELD{name="Home" value="http://foswiki.org/Extensions/%$ROOTMODULE%"}%
+%META:FIELD{name="Support" value="http://foswiki.org/Support/%$ROOTMODULE%"}%

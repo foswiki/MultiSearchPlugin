@@ -1,0 +1,3 @@
+# ---+ Extensions
+# ---++ MultiSearchPlugin
+1;
