@@ -4,60 +4,9 @@
 
 ---+ package Foswiki::Plugins::MultiSearchPlugin
 
-Foswiki plugins 'listen' to events happening in the core by registering an
-interest in those events. They do this by declaring 'plugin handlers'. These
-are simply functions with a particular name that, if they exist in your
-plugin, will be called by the core.
-
-This is an empty Foswiki plugin. It is a fully defined plugin, but is
-disabled by default in a Foswiki installation. Use it as a template
-for your own plugins.
-
-To interact with Foswiki use ONLY the official APIs
-documented in %SYSTEMWEB%.DevelopingPlugins. <strong>Do not reference any
-packages, functions or variables elsewhere in Foswiki</strong>, as these are
-subject to change without prior warning, and your plugin may suddenly stop
-working.
-
-Error messages can be output using the =Foswiki::Func= =writeWarning= and
-=writeDebug= functions. These logs can be found in the Foswiki/working/logs
-directory.  You can also =print STDERR=; the output will appear in the
-webserver error log.  The ENVironment setting =$ENV{FOSWIKI_ASSERTS}= setting makes
-Foswiki less tolerant of errors, and it is recommended to set it during
-development.  It can be set by editing =bin/LocalLib.cfg=, (If missing, see =bin/LocalLib.cfg.txt=)
-Most handlers can also throw exceptions (e.g.
-[[%SCRIPTURL{view}%/%SYSTEMWEB%/PerlDoc?module=Foswiki::OopsException][Foswiki::OopsException]])
-
-For increased performance, all handler functions except =initPlugin= are
-commented out below. *To enable a handler* remove the leading =#= from
-each line of the function. For efficiency and clarity, you should
-only uncomment handlers you actually use.
-
-__NOTE:__ When developing a plugin it is important to remember that
-Foswiki is tolerant of plugins that do not compile. In this case,
-the failure will be silent but the plugin will not be available.
-See %SYSTEMWEB%.InstalledPlugins for error messages.
-
-__NOTE:__ Foswiki:Development.StepByStepRenderingOrder helps you decide which
-rendering handler to use. When writing handlers, keep in mind that these may
-be invoked on included topics. For example, if a plugin generates links to the
-current topic, these need to be generated before the =afterCommonTagsHandler=
-is run. After that point in the rendering loop we have lost the information
-that the text had been included from another topic.
-
-__NOTE:__ Not all handlers (and not all parameters passed to handlers) are
-available with all versions of Foswiki. Where a handler has been added
-the POD comment will indicate this with a "Since" line
-e.g. *Since:* Foswiki::Plugins::VERSION 1.1
-
-Deprecated handlers are still available, and can continue to be used to
-maintain compatibility with earlier releases, but will be removed at some
-point in the future. If you do implement deprecated handlers, then you can
-do no harm by simply keeping them in your code, but you are recommended to
-implement the alternative as soon as possible.
-
-See http://foswiki.org/Download/ReleaseDates for a breakdown of release
-versions.
+This plugin enables to perform multiple searches in one efficient macro.
+It is an efficient way to build up tables of information that would otherwise
+require multiple repeated SEARCH macros.
 
 =cut
 
@@ -142,10 +91,6 @@ In the case of a catastrophic failure that will prevent the whole
 installation from working safely, this handler may use 'die', which
 will be trapped and reported in the browser.
 
-__Note:__ Please align macro names with the Plugin name, e.g. if
-your Plugin is called !FooBarPlugin, name macros FOOBAR and/or
-FOOBARSOMETHING. This avoids namespace issues.
-
 =cut
 
 sub initPlugin {
@@ -173,23 +118,23 @@ sub _returnNoonOfDate {
 
 =begin TML
 
----++ _fetchFormFieldValue($field, $web, $topic) -> $value
+---++ _readTopic($web, $topic) -> $meta
 
-Fetch the raw unrendered content of a formfield
+Check for permissions to read topic
+If allowed return the meta object from which we can later fetch field values
 
 The parameter is:
-   * =$field= - Field name to fetch.
    * =$web= - Web name of topic
    * =$topic= - Topic name  
    
 The sub returns
-   * String - The raw content in the field
-   * Returns '' if topic does not exist or no access rights
+   * Meta object
+   * Returns undef if topic does not exist or no access rights
    
 =cut
 
-sub _fetchFormFieldValue {
-    my ( $field, $web, $topic ) = @_;
+sub _readTopic {
+    my ( $web, $topic ) = @_;
 
     my $currentWikiName = Foswiki::Func::getWikiName();
 
@@ -199,10 +144,32 @@ sub _fetchFormFieldValue {
         )
       )
     {
-        return '';
+        return undef;
     }
 
     my ( $meta, undef ) = Foswiki::Func::readTopic( $web, $topic );
+
+    return $meta;
+}
+
+=begin TML
+
+---++ _fetchFormFieldValue($field, $meta) -> $value
+
+Fetch the raw unrendered content of a formfield
+
+The parameter is:
+   * =$field= - Field name to fetch.
+   * =$meta=  - Meta object of topic
+
+The sub returns
+   * String - The raw content in the field
+   * Returns '' if field does not exist
+
+=cut
+
+sub _fetchFormFieldValue {
+    my ( $field, $meta ) = @_;
 
     my $value = $meta->get( 'FIELD', $field );
 
@@ -286,10 +253,7 @@ sub _convertStringToDate {
 sub _MULTISEARCH {
     my ( $session, $params, $theTopic, $theWeb ) = @_;
 
-    my @multiSearchStrings;
-    my @multiLineFormats;
-
-    my $searchString  = $params->{_DEFAULT};
+    my $ignored       = $params->{_DEFAULT};
     my $paramWeb      = $params->{web} || $theWeb;
     my $indexField    = $params->{indexfield};
     my $listSeparator = $params->{listseparator} || ' ';
@@ -298,10 +262,16 @@ sub _MULTISEARCH {
     my $footer        = $params->{footer} || '';
     my $indexType     = $params->{indextype} || 'text';    # text, date, multi
 
+
+    my @multiSearchStrings;
+    my @listFormats;
+    
     my $searchCounter = 1;
     while ( defined $params->{"search$searchCounter"} ) {
         $multiSearchStrings[$searchCounter] = $params->{"search$searchCounter"};
-        $multiLineFormats[$searchCounter]   = $params->{"format$searchCounter"};
+        $listFormats[$searchCounter]   = defined $params->{"listformat$searchCounter"}
+                                       ? $params->{"listformat$searchCounter"}
+                                       : '';
         $searchCounter++;
     }
 
@@ -324,25 +294,36 @@ sub _MULTISEARCH {
         # For each found topic we fetch the value of the indexField
         while ( $matches->hasNext ) {
 
+            my $fullTopicName = $matches->next;
+
             my ( $web, $topic ) =
-              Foswiki::Func::normalizeWebTopicName( '', $matches->next );
+              Foswiki::Func::normalizeWebTopicName( '', $fullTopicName );
+
+            my $meta = _readTopic( $web, $topic );
 
             my $indexFieldValue =
-              _fetchFormFieldValue( $indexField, $web, $topic );
+              _fetchFormFieldValue( $indexField, $meta );
+              
+            my $listFormat = @listFormats[$i];
+            $listFormat =~ s/\$web/$web/gs;
+            $listFormat =~ s/\$topic/$topic/gs;
+            # for each formfield we need to now fetch the field values now
+            # that the meta is loaded
+            $listFormat =~ s/\$formfield\(\s*([^\)]*)\s*\)/_fetchFormFieldValue( $1, $meta )/ges;
 
             if ( $indexType eq 'multi' ) {
                 map {
                     s/^\s*(.*?)\s*$/$1/;
-                    $valueIndex{$_}[$i]{$topic} = 1;
+                    $valueIndex{$_}[$i]{$fullTopicName} = $listFormat;
                 } split( /\s*,\s*/, $indexFieldValue );
             }
             elsif ( $indexType eq 'date' ) {
 
                 # TODO - Convert to epoch?
-                $valueIndex{$indexFieldValue}[$i]{$topic} = 1;
+                $valueIndex{$indexFieldValue}[$i]{$fullTopicName} = $listFormat;
             }
             else {
-                $valueIndex{$indexFieldValue}[$i]{$topic} = 1;
+                $valueIndex{$indexFieldValue}[$i]{$fullTopicName} = $listFormat;
             }
         }
     }
@@ -357,13 +338,19 @@ sub _MULTISEARCH {
 
         for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
 
-         # SMELL: We cannot add a web name to the topic list as it is shown here
-            my $topicList = join( $listSeparator,
-                sort( keys %{ $valueIndex{$indexText}[$i] } ) );
+            # first we build the     
+
+            my $formatList;
+            
+            foreach my $webTopic ( keys %{ $valueIndex{$indexText}[$i] } ) {
+                $formatList = join( $listSeparator, sort( %{ $valueIndex{$indexText}[$i]{$webTopic} } ) );
+            }
+           
             my $topicCount = keys %{ $valueIndex{$indexText}[$i] };
             $totalFound[$i] += $topicCount;
+
             $result =~ s/\$indexfield/$indexText/gs;
-            $result =~ s/\$topiclist$i/$topicList/gs;
+            $result =~ s/\$list$1/$formatList/gs;
             $result =~ s/\$nhits$i/$topicCount/gs;
             $result = Foswiki::Func::decodeFormatTokens($result);
         }
