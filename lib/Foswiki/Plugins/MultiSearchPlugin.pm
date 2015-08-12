@@ -22,6 +22,7 @@ use Foswiki::Plugins ();    # For the API version
 use Time::Local      ();
 use Foswiki::Time    ();
 use Time::ParseDate  ();    # For relative dates
+use Data::Dumper;
 
 # $VERSION is referred to by Foswiki, and is the only global variable that
 # *must* exist in this package. For best compatibility, the simple quoted decimal
@@ -97,7 +98,7 @@ sub initPlugin {
     my ( $topic, $web, $user, $installWeb ) = @_;
 
     # check for Plugins.pm versions
-    if ( $Foswiki::Plugins::VERSION < 2.3 ) {
+    if ( $Foswiki::Plugins::VERSION < 2.2 ) {
         Foswiki::Func::writeWarning( 'Version mismatch between ',
             __PACKAGE__, ' and Plugins.pm' );
         return 0;
@@ -256,7 +257,6 @@ sub _MULTISEARCH {
     my $ignored       = $params->{_DEFAULT};
     my $paramWeb      = $params->{web} || $theWeb;
     my $indexField    = $params->{indexfield};
-    my $listSeparator = $params->{listseparator} || ' ';
     my $lineFormat    = $params->{"format"} || '';
     my $header        = $params->{header} || '';
     my $footer        = $params->{footer} || '';
@@ -265,13 +265,17 @@ sub _MULTISEARCH {
 
     my @multiSearchStrings;
     my @listFormats;
+    my @listSeparators;
     
     my $searchCounter = 1;
     while ( defined $params->{"search$searchCounter"} ) {
         $multiSearchStrings[$searchCounter] = $params->{"search$searchCounter"};
-        $listFormats[$searchCounter]   = defined $params->{"listformat$searchCounter"}
-                                       ? $params->{"listformat$searchCounter"}
-                                       : '';
+        $listFormats[$searchCounter]        = defined $params->{"listformat$searchCounter"}
+                                            ? $params->{"listformat$searchCounter"}
+                                            : '';
+        $listSeparators[$searchCounter]     = defined $params->{"listseparator$searchCounter"}
+                                            ? $params->{"listseparator$searchCounter"}
+                                            : '';
         $searchCounter++;
     }
 
@@ -304,7 +308,7 @@ sub _MULTISEARCH {
             my $indexFieldValue =
               _fetchFormFieldValue( $indexField, $meta );
               
-            my $listFormat = @listFormats[$i];
+            my $listFormat = $listFormats[$i];
             $listFormat =~ s/\$web/$web/gs;
             $listFormat =~ s/\$topic/$topic/gs;
             # for each formfield we need to now fetch the field values now
@@ -338,30 +342,29 @@ sub _MULTISEARCH {
 
         for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
 
-            # first we build the     
+            # We build the formatted list for each indexText and for each search   
 
-            my $formatList;
-            
-            foreach my $webTopic ( keys %{ $valueIndex{$indexText}[$i] } ) {
-                $formatList = join( $listSeparator, sort( %{ $valueIndex{$indexText}[$i]{$webTopic} } ) );
-            }
-           
+            my $formatList = '';
+
+            $formatList = join( $listSeparators[$i], values %{ $valueIndex{$indexText}[$i] } );
+
             my $topicCount = keys %{ $valueIndex{$indexText}[$i] };
             $totalFound[$i] += $topicCount;
 
             $result =~ s/\$indexfield/$indexText/gs;
-            $result =~ s/\$list$1/$formatList/gs;
+            $result =~ s/\$list$i/$formatList/gs;
             $result =~ s/\$nhits$i/$topicCount/gs;
             $result = Foswiki::Func::decodeFormatTokens($result);
         }
         $resultString .= $result;
     }
 
+    # Update header and footer
     for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
         $header =~ s/\$ntopics$i/$totalFound[$i]/gs;
         $footer =~ s/\$ntopics$i/$totalFound[$i]/gs;
     }
-
+    # decode the usual format tokens of header and footer
     $header = Foswiki::Func::decodeFormatTokens($header);
     $footer = Foswiki::Func::decodeFormatTokens($footer);
 
