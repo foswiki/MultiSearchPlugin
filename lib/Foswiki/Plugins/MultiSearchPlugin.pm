@@ -119,42 +119,6 @@ sub _returnNoonOfDate {
 
 =begin TML
 
----++ _readTopic($web, $topic) -> $meta
-
-Check for permissions to read topic
-If allowed return the meta object from which we can later fetch field values
-
-The parameter is:
-   * =$web= - Web name of topic
-   * =$topic= - Topic name  
-   
-The sub returns
-   * Meta object
-   * Returns undef if topic does not exist or no access rights
-   
-=cut
-
-sub _readTopic {
-    my ( $web, $topic ) = @_;
-
-    my $currentWikiName = Foswiki::Func::getWikiName();
-
-    unless (
-        Foswiki::Func::checkAccessPermission(
-            'VIEW', $currentWikiName, undef, $topic, $web
-        )
-      )
-    {
-        return undef;
-    }
-
-    my ( $meta, undef ) = Foswiki::Func::readTopic( $web, $topic );
-
-    return $meta;
-}
-
-=begin TML
-
 ---++ _fetchFormFieldValue($field, $meta) -> $value
 
 Fetch the raw unrendered content of a formfield
@@ -290,9 +254,10 @@ sub _MULTISEARCH {
     for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
 
         # First we find all topics that matches the search
-        # SMELL should we allow none query searches?
+        # Note that this plugin always assumes a query type search
         my $matches = Foswiki::Func::query( "$multiSearchStrings[$i]", undef,
-            { web => $paramWeb, casesensitive => 0, files_without_match => 0 }
+            { web => $paramWeb, casesensitive => 0, files_without_match => 0, 
+              type => 'query' }
         );
 
         # For each found topic we fetch the value of the indexField
@@ -303,7 +268,7 @@ sub _MULTISEARCH {
             my ( $web, $topic ) =
               Foswiki::Func::normalizeWebTopicName( '', $fullTopicName );
 
-            my $meta = _readTopic( $web, $topic );
+            my ( $meta, undef ) = Foswiki::Func::readTopic( $web, $topic );
 
             my $indexFieldValue =
               _fetchFormFieldValue( $indexField, $meta );
@@ -311,7 +276,8 @@ sub _MULTISEARCH {
             my $listFormat = $listFormats[$i];
             $listFormat =~ s/\$web/$web/gs;
             $listFormat =~ s/\$topic/$topic/gs;
-            # for each formfield we need to now fetch the field values now
+
+            # For each formfield we need to now fetch the field values now
             # that the meta is loaded
             $listFormat =~ s/\$formfield\(\s*([^\)]*)\s*\)/_fetchFormFieldValue( $1, $meta )/ges;
 
