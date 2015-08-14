@@ -144,26 +144,35 @@ sub _fetchFormFieldValue {
 }
 
 sub _convertStringToDate {
-    my ($text) = @_;
+    my ($text, $relativeDate ) = @_;
 
     return undef if !defined $text;
     return undef if $text eq '';
     return undef if ( $text =~ /^\s*$/ );
-
-    my $date = undef;
-
-    if ( $text =~ /^\s*-?[0-9]+(\.[0-9])*\s*$/ ) {
-        # This is a number
+    
+    my $date = Foswiki::Time::parseTime($text);
+    
+    return $date if defined $date;
+    
+    # OK, the date may be given as relative to today
+    
+    # We get time of last passed midnight representing today
+    unless ( defined $relativeDate ) {
+        my ( $sec, $min, $hour, $day, $mon, $year, $wday, $yday ) = gmtime();
+        $relativeDate = timegm( 0, 0, 0, $day, $mon, $year );
     }
-    else {
-        try {
-            $date = Foswiki::Time::parseTime($text);
-        }
-        catch Error::Simple with {
 
-            # nope, wasn't a date
-        };
-    }
+    $date = Time::ParseDate::parsedate( $text,
+                                        NO_RELATIVE => 0,
+                                        DATE_REQUIRED => 1,
+                                        UK => 1,
+                                        NOW => $relativeDate,
+                                        PREFER_FUTURE => 1,
+                                        GMT => 1
+                                      );
+    
+    # return undef if we failed at calucating anything
+    return undef unless defined $date;
 
     return $date;
 }
@@ -220,16 +229,20 @@ sub _MULTISEARCH {
 
     my $ignored       = $params->{_DEFAULT};
     my $paramWeb      = $params->{web} || $theWeb;
-    my $indexField    = $params->{indexfield};
     my $lineFormat    = $params->{"format"} || '';
     my $header        = $params->{header} || '';
     my $footer        = $params->{footer} || '';
-    my $indexType     = $params->{indextype} || 'text';    # text, date, multi
-
+    my $indexType     = $params->{indextype} || 'text'; # text, date, multi
+    my $indexFormat   = $params->{indexformat} || '';   # date formats
+    my $indexMode     = $params->{indexmode} || 'index'; # index, interval
+    my $indexStart    = $params->{indexstart};
+    my $indexEnd      = $params->{indexend};
+    my $indexStep     = $params->{indexstep} || "1";
 
     my @multiSearchStrings;
     my @listFormats;
     my @listSeparators;
+    my @indexFields;
     
     my $searchCounter = 1;
     while ( defined $params->{"search$searchCounter"} ) {
@@ -240,14 +253,18 @@ sub _MULTISEARCH {
         $listSeparators[$searchCounter]     = defined $params->{"listseparator$searchCounter"}
                                             ? $params->{"listseparator$searchCounter"}
                                             : '';
+        $indexFields[$searchCounter]        = defined $params->{"indexfield$searchCounter"}
+                                            ? $params->{"indexfield$searchCounter"}
+                                            : '';
         $searchCounter++;
     }
 
     #We decrease by 1 and have the number of found search strings
     $searchCounter--;
 
-    return "No index field"    unless $indexField;
     return "No searches found" unless $searchCounter;
+    
+    # Smell: Need to better report missing matching parameters
 
     my %valueIndex;
 
@@ -271,7 +288,7 @@ sub _MULTISEARCH {
             my ( $meta, undef ) = Foswiki::Func::readTopic( $web, $topic );
 
             my $indexFieldValue =
-              _fetchFormFieldValue( $indexField, $meta );
+              _fetchFormFieldValue( $indexFields[$i], $meta );
               
             my $listFormat = $listFormats[$i];
             $listFormat =~ s/\$web/$web/gs;
@@ -284,46 +301,130 @@ sub _MULTISEARCH {
             if ( $indexType eq 'multi' ) {
                 map {
                     s/^\s*(.*?)\s*$/$1/;
-                    $valueIndex{$_}[$i]{$fullTopicName} = $listFormat;
+                    $valueIndex{$_}{$i}{$fullTopicName} = $listFormat;
                 } split( /\s*,\s*/, $indexFieldValue );
             }
-            elsif ( $indexType eq 'date' ) {
-
-                # TODO - Convert to epoch?
-                $valueIndex{$indexFieldValue}[$i]{$fullTopicName} = $listFormat;
-            }
             else {
-                $valueIndex{$indexFieldValue}[$i]{$fullTopicName} = $listFormat;
+                $valueIndex{$indexFieldValue}{$i}{$fullTopicName} = $listFormat;
             }
         }
     }
+
+#
+#            elsif ( $indexType eq 'date' ) {
+#
+#                my $dateTime = Foswiki::Time::parseTime( $indexFieldValue );
+#                if ( $indexFormat ) {
+#                    $indexFieldValue = Foswiki::Time::formatTime($dateTime, $indexFormat, gmtime);
+#                }
+#                               
+#                $valueIndex{$indexFieldValue}[$i]{$fullTopicName} = $listFormat;
+#            }
 
     my $resultString = '';
     my @totalFound;
     my $finalResultString = "";
 
-    # Now we iterate through all indexField sorted values in all searches
-    foreach my $indexText ( sort keys %valueIndex ) {
-        my $result = $lineFormat;
+    if ( $indexMode eq 'index' ) {
+    
+        # Now we iterate through all indexField sorted values in all searches
+        foreach my $indexText ( sort keys %valueIndex ) {
+            my $result = $lineFormat;
+    
+            for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
+    
+                # We build the formatted list for each indexText and for each search   
+    
+                my $formatList = '';
+    
+                $formatList = join( $listSeparators[$i], values %{ $valueIndex{$indexText}{$i} } );
+    
+                my $topicCount = keys %{ $valueIndex{$indexText}{$i} };
+                $totalFound[$i] += $topicCount;
+    
+                $result =~ s/\$indexfield/$indexText/gs;
+                $result =~ s/\$list$i/$formatList/gs;
+                $result =~ s/\$nhits$i/$topicCount/gs;
+                $result =~ s/\$ntotal$i/$totalFound[$i]/gs;
+                $result = Foswiki::Func::decodeFormatTokens($result);
+            }
+            $resultString .= $result;
+        }
+    } elsif ( $indexMode eq 'interval' ) {
+        my $start = $indexStart;
+        my $end = $indexEnd;
+        my $step = $indexStep || 1;
+
+        # We need to sort all the indexes
+        # I need one array per search
+        
+        my $sortedIndexes;
+        
+        my $j = 0;
+        foreach my $valueIx ( keys %valueIndex ) {
+            foreach my $searchPass ( keys %{ $valueIndex{$valueIx}} ) {
+                foreach my $webTopics ( keys %{ $valueIndex{$valueIx}{$searchPass} } ) { 
+                    $sortedIndexes[$searchPass][$j]{formatlist} = $valueIndex{$valueIx}{$searchPass}{$webTopics};
+                    my $tempValue = $valueIx;
+                    $tempValue = Foswiki::Time::parseTime( $tempValue ) if ( $indexType eq 'date' );
+                    $sortedIndexes[$searchPass][$j]{indexvalue} = $tempValue;
+                #print STDERR Dumper($j,$tempValue, $searchPass, $webTopics, $valueIndex{$valueIx}{$searchPass}{$webTopics});
+                    $j++
+                }
+            }
+        }
 
         for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
+#            my @temparray;           
+#            @temparray= sort { $a->{indexvalue} <=> $b->{indexvalue} } @temparray;
+#            @{$sortedIndexes[$i]} = @temparray;
+#             @temparray = [ sort { $a->{indexvalue} <=> $b->{indexvalue} } @{$sortedIndexes->[$i]} ];
 
-            # We build the formatted list for each indexText and for each search   
-
-            my $formatList = '';
-
-            $formatList = join( $listSeparators[$i], values %{ $valueIndex{$indexText}[$i] } );
-
-            my $topicCount = keys %{ $valueIndex{$indexText}[$i] };
-            $totalFound[$i] += $topicCount;
-
-            $result =~ s/\$indexfield/$indexText/gs;
-            $result =~ s/\$list$i/$formatList/gs;
-            $result =~ s/\$nhits$i/$topicCount/gs;
-            $result = Foswiki::Func::decodeFormatTokens($result);
         }
-        $resultString .= $result;
+        
+#        my $cnt = 0;
+#print STDERR Dumper(@sortedIx);
+#        if ( $indexType eq 'date' ) {
+#            # Let us calculate all time into epoch
+#            $start = _convertStringToDate($indexStart, undef);
+#            $end   = _convertStringToDate($indexEnd, undef);
+#            # We get relative by passing epoch as reference date
+#            $step  = _convertStringToDate($indexStep, 0);
+#        }          
+#        
+#        for ( my $ix = $start; $ix < $end; $ix += $step ) {
+#
+#            while ( $sortedIx[$cnt] >= $ix && $sortedIx[$cnt] < $ix ) {
+#
+#                my $result = $lineFormat;         
+#                my $indexText = $sortedIx[$cnt];
+#                
+#                for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
+#        
+#                    # We build the formatted list for each indexText and for each search   
+#        
+#                    my $formatList = '';
+#        
+#                    $formatList = join( $listSeparators[$i], values %{ $valueIndex{$indexText}[$i] } );
+#        
+#                    my $topicCount = keys %{ $valueIndex{$indexText}[$i] };
+#                    $totalFound[$i] += $topicCount;
+#        
+#                    $result =~ s/\$indexfield/$ix/gs;
+#                    $result =~ s/\$list$i/$formatList/gs;
+#                    $result =~ s/\$nhits$i/$topicCount/gs;
+#                    $result =~ s/\$ntotal$i/$totalFound[$i]/gs;
+#                    $result = Foswiki::Func::decodeFormatTokens($result);
+#                }
+#                $resultString .= $result;
+#                $cnt++;
+#            }
+#        }   
+        
+    } else {
+        return "Unknown index mode";
     }
+
 
     # Update header and footer
     for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
