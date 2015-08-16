@@ -1,19 +1,111 @@
 %META:TOPICINFO{author="ProjectContributor" date="1434650530" format="1.1" version="1"}%
 %META:TOPICPARENT{name="Macros"}%
----+ MULTISEARCH -- example macro tag
+---+ MULTISEARCH -- perform multiple formatted searches in one efficient macro
 
 The =%<nop>MULTISEARCH%= variable is handled by the MultiSearchPlugin
 
 ---++ Parameters
 
    | *Parameter* | *Description* | *Default* |
-   | ="..."= | Unnamed parameter | |
-   | =text= - | example text | ="..."= |
-   | =format= | format of report | |
+   | ="..."= | Unnamed parameter is not used in this macro | |
+   | =web= | Web in which the search is performed | current web |
+   | =format= | Format of the resulting search for each index value of interval. Typically defines a bullet point or a table row | '' |
+   | =header= | The header is output just before the formatted search results. Typically used for table headers. See tokens used in headers below | |
+   | =footer= | The footer is output just after the formatted search results. Typically used for table footers and for summary texts. See tokens used in headers below | |
+   | =indexmode= | Defines the mode of the search. Valid values are =index= and =interval= | =index= |
+   | =indextype= | Defined how to treat the index fields. All index fields are treated as the same type. <br /> =text= is plain text<br /> =multi= means the field has multiple values<br /> =date= means the field is interpreted as a date. The plugin will understand dates in the format described in %SYSTEMWEB%/TimeSpecifications and any form field defined as a date field | =text= |
+   | =indexformat= | Only for date type fields. Defines how the intervals are displayed when showing the start date. Defined by using Time Format Tokens. See below. If this is not defined dates are shown as epoch and text just presented in the original format | undefined |
+   | =indexstart= | For interval searches this defines the start value. For dates this is the date of the first interval. See note 2 about dates below. | undefined |
+   | =indexend= | For interval searches this defines the end value. The actual end of the last interval will depends on the indexstart and indexstep because the plugin assumes you will always want the last interval to be a complete interval. See note 2 about dates below. | undefined |
+   | =indexstep= | The size of each interval. For dates it can be number of seconds or it can be any positive relative time. See note 3 below | =1= or =1 week= |
+   | =search#= | The # is a number starting from 1. The search syntax is 100% identical with query type searches using standard SEARCH. You cannot jump the number sequency. The number must start with 1 and increment by 1 for each new search option. | '' |
+   | =listformat#= | The format that is used for each found topic. These formatted lists are then joined together using the listseparator and output with the $list# (# - the search number) token inside the format parameter | '' |
+   | =listseparator#= | The number # must also be used in a search# option. This is the format used for the $list# token used in the =format= string. Typically this is set to ', ' (comma space) to create a list separated by commas. | '' |
+   | =indexfield#= | The name of the form field used for search number #. | '' |
 
----++ Examples
+   * Note1: The parameters formats, headers, and footers do not by default put a new line at the end. You must always specify this with a $n if you need a new line (you will need this in most cases)
+   * Note2: Dates given to indexstart and indexend can be entered in two different formats
+      * It will first try the normal Foswiki date/time formats as described in %SYSTEMWEB%.TimeSpecifications.
+      * If the above fails it will try and calculate the date based on relative time that the CPAN library Time::ParseDate can handle. E.g. "-3 months" , "last Monday", "+2 days", "next Wednesday", "2 weeks"
+   * Note3: indexstep relative times is always relative to now. You can use any time format that the CPAN library Time::ParseDate can handle. E.g. "1 month", "7 days", "1 week", "2 weeks"
 
-   * =%<nop>MULTISEARCH{"hello" format="| $topic: $summary |"}%=
+---++ Parameter Tokens
+
+---+++ <b> =header="..."= </b> parameter, <b> =footer="..."= </b> parameter
+
+Use the header and footer parameter to specify the header and footer of a search result. It should correspond to the format of the format parameter. Both parameters are optional.
+
+*Example header:* <verbatim class="tml">header="| *Business* | *Total ($ntotal* | *Open* | *Open A-level* | *List of Opens* |$n"</verbatim>
+
+*Example footer:* <verbatim class="tml"> footer="| | $ntopics1 | $ntopics2 | $ntopics3 | |$n"</verbatim>
+
+Format tokens that can be used in the header and footer strings:
+
+| *Name:* | *Expands To:* |
+| =$ntopics#= | Number of topics found in current web. The total is calculated AFTER all the searches are complete |
+
+   * In addition you can use all the standard format tokens with the =header= and =footer= parameters. See below.
+
+---+++ <b> =listformat#="..."= </b> parameter
+
+*Example:* <verbatim class="tml">listformat1="$formfield(Originator)" listformat2="[[$web.$topic][$topic]]"</verbatim>
+
+Format tokens that can be used in the listformat# string:
+
+| *Name:* | *Expands To:* |
+| =$web= | Name of the web |
+| =$topic= | Name of the found topic |
+| =$formfield(name)= | Content of any formfield of the given topic. No formatting is done with the formfield content. It may contain characters that needs to be dealt with. (This may be enhanced in later versions of the plugin) |
+
+---+++ <b> =listseparator#="..."= </b> parameter
+
+*Example:* <verbatim class="tml">listseparator2=", "</verbatim>
+
+You can use all the standard format tokens with the =listseparator#= parameter. See below.
+
+---+++ <b> =format="..."= </b> parameter
+
+*Example:* <verbatim class="tml">format="| $indexfield | $ntopics1 | $ntopics2 | $list1 | $list2 |$n"</verbatim>
+
+Format tokens that can be used in the format string.
+
+| *Name:* | *Expands To:* |
+| =$indexfield= | When indexmode is =index= $indexfield show the common value of the indexfields<br />When indexmode is =interval= $indexfield shows the lower value of the interval |
+| =$list#= | The # is the number of the corresponding search number. $list# displays all the values given by the listformat# parameter which are joined together by the string defined by the listseparator# parameter |
+| =$nhits#= | The number of topics found by this search number # for this index value or interval. |
+| =$ntopics#= | $ntopics# is the total of topics found in search# in the accumulated indexes or intervals shown until now. NOTE! For intervals the $ntopics value starts at the number of topics found having an indexfield value below/before the =indexstart= parameter value |
+
+   * In addition you can use all the standard format tokens with the =format= parameter. See below.
+
+---+++ <b> =indexformat="..."= </b> parameter
+
+indexformat is only used when the =indextype= is =date= and it accepts these special time format tokens
+
+| *Token:* | *Unit:* | *Example* |
+| =$seconds= | seconds | 59 |
+| =$minutes= | minutes | 59 |
+| =$hours= | hours | 23 |
+| =$day= | day of month | 31 |
+| =$wday= | day of the Week (Sun, Mon, Tue, Wed, Thu, Fri, Sat) | Thu |
+| =$dow= | day of the week (Sun = 0) | 2  |
+| =$week= | number of week in year (ISO 8601) | 34 |
+| =$month= | short name of month | Dec |
+| =$mo= | 2 digit month | 12 |
+| =$year= | 4 digit year | 1999 |
+| =$ye= | 2 digit year | 99 |
+| =$tz= | either "GMT" (if set to gmtime), or "Local" (if set to servertime) | GMT |
+| =$iso= | ISO format timestamp | %GMTIME{"$iso"}% |
+| =$rcs= | RCS format timestamp | %GMTIME{"$rcs"}% |
+| =$http= | E-mail & http format timestamp | %GMTIME{"$http"}% |
+| =$epoch= | Number of seconds since 00:00 on 1st January, 1970 | %GMTIME{"$epoch"}% |
+
+Tokens can be shortened to 3 characters
+
+---+++ Standard Tokens for =header=, =footer=, =listseparator#=, and =format= parameters
+
+| *Name:* | *Expands To:* |
+%INCLUDE{"%SYSTEMWEB%.FormatTokens"}% 
+   
 %STOPINCLUDE%
 
 ---++ Related

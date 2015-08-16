@@ -22,7 +22,6 @@ use Foswiki::Plugins ();    # For the API version
 use Time::Local      ();
 use Foswiki::Time    ();
 use Time::ParseDate  ();    # For relative dates
-use Data::Dumper;
 
 # $VERSION is referred to by Foswiki, and is the only global variable that
 # *must* exist in this package. For best compatibility, the simple quoted decimal
@@ -53,7 +52,7 @@ our $VERSION = '1.00';
 # It is preferred to keep this compatible with $VERSION. At some future
 # date, Foswiki will deprecate RELEASE and use the VERSION string.
 #
-our $RELEASE = '12 Aug 2015';
+our $RELEASE = '17 Aug 2015';
 
 # One line description of the module
 our $SHORTDESCRIPTION =
@@ -148,11 +147,11 @@ sub _convertStringToDate {
     return $date if defined $date;
     
     # OK, the date may be given as relative to today
-    
+ 
     # We get time of last passed midnight representing today
     unless ( defined $relativeDate ) {
         my ( $sec, $min, $hour, $day, $mon, $year, $wday, $yday ) = gmtime();
-        $relativeDate = timegm( 0, 0, 0, $day, $mon, $year );
+        $relativeDate = Time::Local::timegm( 0, 0, 0, $day, $mon, $year );
     }
 
     $date = Time::ParseDate::parsedate( $text,
@@ -248,7 +247,7 @@ sub _MULTISEARCH {
                                             : '';
         $indexFields[$searchCounter]        = defined $params->{"indexfield$searchCounter"}
                                             ? $params->{"indexfield$searchCounter"}
-                                            : '';
+                                            : return "You must define an index field for each search" ;
         $searchCounter++;
     }
 
@@ -306,7 +305,7 @@ sub _MULTISEARCH {
 
     my @totalFound;
     for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
-        @totalFound[$i] = 0;
+        $totalFound[$i] = 0;
     }
 
     if ( $indexMode eq 'index' ) {
@@ -327,7 +326,7 @@ sub _MULTISEARCH {
                 $result =~ s/\$indexfield/$indexText/gs;
                 $result =~ s/\$list$i/$formatList/gs;
                 $result =~ s/\$nhits$i/$topicCount/gs;
-                $result =~ s/\$ntotal$i/$totalFound[$i]/gs;
+                $result =~ s/\$ntopics$i/$totalFound[$i]/gs;
                 $result = Foswiki::Func::decodeFormatTokens($result);
             }
             $resultString .= $result;
@@ -335,7 +334,7 @@ sub _MULTISEARCH {
     } elsif ( $indexMode eq 'interval' ) {
         my $start = $indexStart;
         my $end = $indexEnd;
-        my $step = $indexStep || 1;
+        my $step = $indexStep || $indexType eq 'date' ? '1 week' : 1;
 
         # We need to sort all the indexes
         # I need one array per search
@@ -404,7 +403,7 @@ sub _MULTISEARCH {
                             
                 }
                 
-                my $formatList = join( $listSeparators[$i], @formatLists );
+                my $formatList = join( $listSeparators[$i], sort @formatLists );
                 
                 $totalFound[$i] += $topicCount;
            
@@ -416,7 +415,7 @@ sub _MULTISEARCH {
                 $result =~ s/\$indexfield/$formattedIndex/gs;
                 $result =~ s/\$list$i/$formatList/gs;
                 $result =~ s/\$nhits$i/$topicCount/gs;
-                $result =~ s/\$ntotal$i/$totalFound[$i]/gs;
+                $result =~ s/\$ntopics$i/$totalFound[$i]/gs;
                 $result = Foswiki::Func::decodeFormatTokens($result);   
             }
             

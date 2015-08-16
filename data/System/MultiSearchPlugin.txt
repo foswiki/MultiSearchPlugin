@@ -8,17 +8,123 @@ One line description, required for extensions repository catalog.
 
 %SHORTDESCRIPTION%
 
-%TOC%
+This plugin is a supplement to the normally powerful built-in SEARCH feature in Foswiki.
 
+SEARCH can perform very advanced searches with a large number of Foswiki topics and return the results in a very flexible way.
+You can create nested searches where a search depends on the result of a previous search.
+
+But there are searches that the normal SEARCH only can do by repeating the same search over and over again. Each time you execute a new SEARCH all the same topics are being searched again and again.
+
+MultiSearchPlugin enables you to perform only a few searches and display the result formatted by common index values, or by presenting the search results devided in intervals (numbers or dates)
+
+The performance result can be dramatic. An example of searching 1300 records by 2 search criteria by 80 intervals may take 30 seconds using a FORMAT which again contains two SEARCH macros. Same can be done in 4 seconds using one single MULTISEARCH macro.
+
+The MultiSearchPlugin always assumes searches to be query type searches and the search syntax is the same as in the normal SEARCH macro.
+
+MultiSearchPlugin has 2 presentation modes
+
+   * index - where all the search results are grouped by the existing values of the chosen index fields
+   * interval - where all the search results are groups by defined intervals between a start and an end value. The feature is mainly meant for dates but can also be used for pure number fields using text fields
+
+An index field is a named field in a form. You can define the index field as either text, multi, or date.
+
+   * text - the results are groups by the raw text content of the field
+   * multi - this is used when a field can have multiple values and you want the same search result to be counted for each value in the field
+   * date - the date is treated as a date field
+     
+---++ Index mode
+
+Let us say that we have a bug reporting system. Each bug is assigned to an engineer.
+We would like to create a list of all the engineers that are current having at least one unresolved bug assigned to them and we want the list of bugs listed as a comma separated list of topic name links.
+
+Here is how we can do it
+
+<verbatim>
+%MULTISEARCH{
+    search1="State='Assessed' AND Release='Project X'"
+    web="Track"
+    indexfield1="Assignee"
+    indextype="text"
+    indexmode="index"
+    listseparator1=", "
+    listformat1="[[$web.$topic][$topic]]"
+    format="   * $indexfield - $list1$n"
+}%
+</verbatim>
+
+Another example is we have a customer complaint system. We would like see how many complaints each business area has and we would like to see how many are still not resolved. We want this in a table with one row for each business and one column for all products and for not yet resolved issues.
+
+The records have a Business and a State field. The business field can have multiple values as the same product may cover several businesses. In a 3rd column we want the number of open severity High complaints. In a 4th column we want a list of all the open issues.
+
+And finally a footer with the totals.
+
+<verbatim>
+%MULTISEARCH{
+    search1="State != 'Rejected'"
+    search2="State = 'Open'"
+    search3="State = 'Open' AND Severity = 'High'"
+    web="Complaints"
+    indexfield1="Business"
+    indexfield2="Business"
+    indexfield3="Business"
+    indextype="multi"
+    indexmode="index"
+    listseparator2=", "
+    listformat2="[[$web.$topic][$topic]]"
+    header="| *Business* | *Total* | *Open* | *Open A-level* | *List of Opens* |$n"  
+    format="| $indexfield | $nhits1 | $nhits2 | $nhits3 | $list2 |$n"
+    footer="| | $ntopics1 | $ntopics2 | $ntopics3 | |$n"
+}%
+</verbatim>
+
+---++ Interval mode
+
+In this example we have web where we register issues. We would like to produce a chart of the arrival and closure rate accumulated per week. We want it only for project X. And we want the metric from the project start on January 1st till and including this week we are in.
+
+The !ChartPlugin needs a table with 3 columns. The X axis text, the data for the first series and the seconds series. For our own need it would be nice if we could click directly to the individual bugs so we add two more columns with links to the topics.
+
+We do not want to count rejected and duplicates in the metric. 
+
+We have a field !DateOriginated that gets set when we create the record. And we have a field !DatePerformed which is set the day the issue is resolved. 
+
+<verbatim>
+%TABLE{name="srrate" columnwidths="150,100,100,200,200"}%
+%MULTISEARCH{
+    search1="(State!='Duplicate' OR State!='Rejected') AND Release='Project X'"
+    search2="(State='Closed' OR State='Performed')  AND Release='Project X'"
+    web="Track"
+    indexfield1="DateOriginated"
+    indexfield2="DatePerformed"
+    indextype="date"
+    indexformat="$day $mon $year"
+    indexmode="interval"
+    indexstart="01 Jan 2014"
+    indexend="next Sunday"
+    indexstep="1 week"
+    listseparator1=", "
+    listseparator2=", "
+    listformat1="[[$web.$topic]]"
+    listformat2="[[$web.$topic]]"
+    format="| $indexfield | $ntopics1 | $ntopics2 | $list1 | $list2 |$n"
+    header="| *Date* | *Opened* | *Resolved* | *Topics* | *Topics* |$n"
+}%
+</verbatim>
+
+---++ Syntax Rules
+
+%INCLUDE{VarMULTISEARCH}%
 
 ---++ Installation
 
 %$INSTALL_INSTRUCTIONS%
 
+The plugin requires the CPAN library Time::ParseDate. Redhat/Centos users can run 'yum install perl-Time-ParseDate-2013' with the 'epel' repo enabled. Debian based distributions can install libtime-modules-perl
+
+
 ---++ Plugin Info
 
 |  Change History: | <!-- versions below in reverse order -->&nbsp; |
-|  1.0 | Initial release |
+|  1.0 (17 Aug 2015) | Initial release |
 |  Dependencies: | %$DEPENDENCIES% | 
 
 
