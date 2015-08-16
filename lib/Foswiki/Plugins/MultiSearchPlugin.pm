@@ -303,7 +303,11 @@ sub _MULTISEARCH {
 
 
     my $resultString = '';
+
     my @totalFound;
+    for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
+        @totalFound[$i] = 0;
+    }
 
     if ( $indexMode eq 'index' ) {
     
@@ -377,8 +381,11 @@ sub _MULTISEARCH {
             for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
                 
                 # First we get rid of all that are before the start interval
+                # but we still include them in the total as this will normally
+                # be what the user wants
                 while ( exists $sortedIndexes[$i][0]{indexvalue} && 
                         $sortedIndexes[$i][0]{indexvalue}< $ix ) {
+                    $totalFound[$i]++;
                     shift @{$sortedIndexes[$i]};
                 }
                 
