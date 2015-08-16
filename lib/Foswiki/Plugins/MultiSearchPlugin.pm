@@ -375,12 +375,19 @@ sub _MULTISEARCH {
             
             # Within each interval this loops each search
             for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
- 
+                
+                # First we get rid of all that are before the start interval
+                while ( exists $sortedIndexes[$i][0]{indexvalue} && 
+                        $sortedIndexes[$i][0]{indexvalue}< $ix ) {
+                    shift @{$sortedIndexes[$i]};
+                }
+                
                 # This loop finds all topics in each search within the interval
                 my $topicCount = 0;
                 my @formatLists;
 
-                while ( $sortedIndexes[$i][0]{indexvalue} >= $ix &&
+                while ( exists $sortedIndexes[$i][0]{indexvalue} &&
+                        $sortedIndexes[$i][0]{indexvalue} >= $ix &&
                         $sortedIndexes[$i][0]{indexvalue} < $ix + $indexStep ) {
                         
                     $topicCount++;
