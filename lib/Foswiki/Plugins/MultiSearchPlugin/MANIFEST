@@ -1,6 +1,5 @@
 !noci
 data/System/MultiSearchPlugin.txt 0644 Documentation page
 data/System/VarMULTISEARCH.txt 0644 Tag documentation
-data/System/VarPERIODSEARCH.txt 0644 Tag documentation
 lib/Foswiki/Plugins/MultiSearchPlugin.pm 0444 Perl module
 lib/Foswiki/Plugins/MultiSearchPlugin/Config.spec 0444 Configuration
