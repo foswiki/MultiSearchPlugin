@@ -345,8 +345,17 @@ sub _MULTISEARCH {
             foreach my $searchPass ( keys %{ $valueIndex{$valueIx}} ) {
                 foreach my $webTopic ( keys %{ $valueIndex{$valueIx}{$searchPass} } ) {
                     my $tempValue = $valueIx;
-                    $tempValue = Foswiki::Time::parseTime( $tempValue ) if ( $indexType eq 'date' );
-                    
+                    if ( $indexType eq 'date' ) {
+                        # Convert a date to seconds from epoch.
+                        # Set the value to 0 if this fails
+                        $tempValue = Foswiki::Time::parseTime( $tempValue  ) || 0 ;
+                    } else {
+                        # We dig any digits out of any strings present if the field is not a number
+                        # We remove none digits and none . + and -.
+                        # Not idiot proof but will normally work
+                        $tempValue =~ s/[^\d.-]//g;
+                        $tempValue = 0 if $tempValue eq '';
+                    }
                     push @{$sortedIndexes[$searchPass]},
                          { formatlist => $valueIndex{$valueIx}{$searchPass}{$webTopic},
                            indexvalue => $tempValue };
@@ -354,8 +363,7 @@ sub _MULTISEARCH {
             }
         }
 
-        for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
-                      
+        for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {                      
             @{$sortedIndexes[$i]} = sort { $a->{indexvalue} <=> $b->{indexvalue} } @{$sortedIndexes[$i]};
         }
 
