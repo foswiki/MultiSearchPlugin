@@ -132,7 +132,7 @@ The plugin requires the CPAN library Time::ParseDate. Redhat/Centos users can ru
 %META:FIELD{name="Author" title="Author" value="KennethLavrsen"}%
 %META:FIELD{name="Version" title="Version" value="%$VERSION%"}%
 %META:FIELD{name="Release" title="Release" value="%$RELEASE%"}%
-%META:FIELD{name="Copyright" value="%$CREATEDYEAR%, KennethLavrsen, All Rights Reserved"}%
+%META:FIELD{name="Copyright" value="2015, KennethLavrsen, All Rights Reserved"}%
 %META:FIELD{name="License" value="GPL ([[http://www.gnu.org/copyleft/gpl.html][GNU General Public License]])"}%
 %META:FIELD{name="Repository" value="https://github.com/foswiki/%$ROOTMODULE%"}%
 %META:FIELD{name="Home" value="http://foswiki.org/Extensions/%$ROOTMODULE%"}%
