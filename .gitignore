@@ -1,0 +1,11 @@
+*,v
+*,pfv
+*.gz
+/MultiSearchPlugin.md5
+/MultiSearchPlugin.sha1
+/MultiSearchPlugin.tgz
+/MultiSearchPlugin.txt
+/MultiSearchPlugin.zip
+/MultiSearchPlugin_installer
+/MultiSearchPlugin_installer.pl
+
