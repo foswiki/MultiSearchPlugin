@@ -37,7 +37,7 @@ use Time::ParseDate  ();    # For relative dates
 #   v1.2.1_001 -> v1.2.2 -> v1.2.2_001 -> v1.2.3
 #   1.21_001 -> 1.22 -> 1.22_001 -> 1.23
 #
-our $VERSION = '1.00';
+our $VERSION = '1.1';
 
 # $RELEASE is used in the "Find More Extensions" automation in configure.
 # It is a manually maintained string used to identify functionality steps.
@@ -52,7 +52,7 @@ our $VERSION = '1.00';
 # It is preferred to keep this compatible with $VERSION. At some future
 # date, Foswiki will deprecate RELEASE and use the VERSION string.
 #
-our $RELEASE = '17 Aug 2015';
+our $RELEASE = '18 Aug 2015';
 
 # One line description of the module
 our $SHORTDESCRIPTION =
@@ -169,6 +169,26 @@ sub _convertStringToDate {
     return $date;
 }
 
+# input value, step size, type
+# If type is date the input is a day and the step a relative time
+# The function returns undef if the relative time cannot be parsed
+sub _incrementByInterval {
+    my ( $input, $step, $type ) = @_;
+    
+    return $input + $step unless ($type eq 'date');
+    
+    my $result = Time::ParseDate::parsedate( $step,
+                                             NO_RELATIVE => 0,
+                                             DATE_REQUIRED => 1,
+                                             UK => 1,
+                                             NOW => $input,
+                                             PREFER_FUTURE => 1,
+                                             GMT => 1
+                                           );    
+    return $result;
+    
+}
+
 # _MULTISEARCH
 #
 #  $session= - a reference to the Foswiki session object
@@ -230,6 +250,31 @@ sub _MULTISEARCH {
     my $indexStart    = $params->{indexstart};
     my $indexEnd      = $params->{indexend};
     my $indexStep     = $params->{indexstep} || "1";
+
+    my $resultString = '';
+
+    # Delay means we escape with $percnt and $quot
+    # We cannot replace inside _RAW because that also replace quotes in values
+    my $delay = $params->{delay};
+    if ( $delay && ( $delay =~ /\d+/ ) && $delay-- > 0 ) {
+        $resultString = "\$percntMULTISEARCH{";
+        $resultString .= "\$quot$ignored\$quot ";
+
+        foreach my $key ( keys %$params ) {
+            next if ($key eq '_RAW' || $key eq '_DEFAULT');
+             
+            if ( $key eq 'delay' ) {
+                $resultString .= "delay=\$quot$delay\$quot ";
+                next;
+            }
+            
+            $resultString .= "$key=\$quot" . $params->{$key} . "\$quot ";
+        }
+        $resultString .= "}\$percnt";
+        return $resultString
+    }
+
+
 
     my @multiSearchStrings;
     my @listFormats;
@@ -301,8 +346,6 @@ sub _MULTISEARCH {
     }
 
 
-    my $resultString = '';
-
     my @totalFound;
     for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
         $totalFound[$i] = 0;
@@ -349,7 +392,8 @@ sub _MULTISEARCH {
                         # Convert a date to seconds from epoch.
                         # Set the value to 0 if this fails
                         $tempValue = Foswiki::Time::parseTime( $tempValue  ) || 0 ;
-                    } else {
+                    }
+                    else {
                         # We dig any digits out of any strings present if the field is not a number
                         # We remove none digits and none . + and -.
                         # Not idiot proof but will normally work
@@ -364,7 +408,8 @@ sub _MULTISEARCH {
         }
 
         for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {                      
-            @{$sortedIndexes[$i]} = sort { $a->{indexvalue} <=> $b->{indexvalue} } @{$sortedIndexes[$i]};
+            @{$sortedIndexes[$i]} = sort { $a->{indexvalue} <=> $b->{indexvalue} }
+                                    @{$sortedIndexes[$i]};
         }
 
         my $cnt = 0;
@@ -373,23 +418,35 @@ sub _MULTISEARCH {
             # Let us calculate all time into epoch
             $indexStart = _convertStringToDate($indexStart, undef);
             $indexEnd   = _convertStringToDate($indexEnd, undef);
-            # We get relative by passing epoch as reference date
-            $indexStep  = _convertStringToDate($indexStep, 0);
-        } 
+          
+            # Check that indexStep can be interpreted
+            return "Invalid indexstep value" unless defined _incrementByInterval( 0, $indexStep, $indexType );
+            
+            # Limit intervals to max 1000
+            if ( ( $indexEnd - $indexStart) / _incrementByInterval( 0, $indexStep, $indexType ) > 1000 ) {
+                return "Number of intervals should be less than 1000";
+            }
+        }
+        else {
+            # Limit intervals to max 1000 in the none date case
+            return "Number of intervals should be less than 1000" if ( abs(($indexEnd-$indexStart)/$indexStep) > 1000 )
+        }
 
         return "End value must be larger or later than start value" if ($indexStart >= $indexEnd);
         return "Cannot have an index step of 0 or negative" if ($indexStep <= 0);
         
         # This loops each interval
-        for ( my $ix = $indexStart; $ix < $indexEnd; $ix += $indexStep ) {
+        for ( my $ix = $indexStart; $ix < $indexEnd; $ix = _incrementByInterval( $ix, $indexStep, $indexType ) ) {
             my $result = $lineFormat;
-            
+            my $intervalEnd = _incrementByInterval( $ix, $indexStep, $indexType);
+         
             # Within each interval this loops each search
             for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
                 
                 # First we get rid of all that are before the start interval
                 # but we still include them in the total as this will normally
                 # be what the user wants
+                
                 while ( exists $sortedIndexes[$i][0]{indexvalue} && 
                         $sortedIndexes[$i][0]{indexvalue}< $ix ) {
                     $totalFound[$i]++;
@@ -402,7 +459,7 @@ sub _MULTISEARCH {
 
                 while ( exists $sortedIndexes[$i][0]{indexvalue} &&
                         $sortedIndexes[$i][0]{indexvalue} >= $ix &&
-                        $sortedIndexes[$i][0]{indexvalue} < $ix + $indexStep ) {
+                        $sortedIndexes[$i][0]{indexvalue} < $intervalEnd ) {
                         
                     $topicCount++;
                     push @formatLists, $sortedIndexes[$i][0]{formatlist};                     
@@ -430,7 +487,8 @@ sub _MULTISEARCH {
             $resultString .= $result;
         }   
         
-    } else {
+    }
+    else {
         return "Unknown index mode";
     }
 

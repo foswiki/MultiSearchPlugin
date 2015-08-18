@@ -124,6 +124,7 @@ The plugin requires the CPAN library Time::ParseDate. Redhat/Centos users can ru
 ---++ Plugin Info
 
 |  Change History: | <!-- versions below in reverse order -->&nbsp; |
+|  1.1 (18 Aug 2015) | Better handling when using month as relative time (same date in next month instead of fixed number of seconds).<br />More checks on input values to avoid infinite loops<br />Support of the delay parameter when using MULTISEARCH inside a nested SEARCH or FORMAT |
 |  1.0 (17 Aug 2015) | Initial release |
 |  Dependencies: | %$DEPENDENCIES% | 
 

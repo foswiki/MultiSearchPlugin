@@ -22,6 +22,7 @@ The =%<nop>MULTISEARCH%= variable is handled by the MultiSearchPlugin
    | =listformat#= | The format that is used for each found topic. These formatted lists are then joined together using the listseparator and output with the $list# (# - the search number) token inside the format parameter | '' |
    | =listseparator#= | The number # must also be used in a search# option. This is the format used for the $list# token used in the =format= string. Typically this is set to ', ' (comma space) to create a list separated by commas. | '' |
    | =indexfield#= | The name of the form field used for search number #. | '' |
+   | =delay="#"= | Number of times the MULTISEARCH will delay its own expansion by changing the first and last %-sign to $percnt and all double quotes (") to $quot. This is used when you use MULTISAVE inside the format parameter of a SEARCH or FORMAT macro and you do not want to expand MULTISEARCH until the outer SEARCH/FORMAT is completed. Set the delay to 1 if it is a single level SEARCH/FORMAT. If you have nested SEARCHes you can set delay to the level of nesting. | =0= |
 
    * Note1: The parameters formats, headers, and footers do not by default put a new line at the end. You must always specify this with a $n if you need a new line (you will need this in most cases)
    * Note2: Dates given to indexstart and indexend can be entered in two different formats
