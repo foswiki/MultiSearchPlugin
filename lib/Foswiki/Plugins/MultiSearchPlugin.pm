@@ -331,7 +331,8 @@ sub _MULTISEARCH {
 
             # For each formfield we need to now fetch the field values now
             # that the meta is loaded
-            $listFormat =~ s/\$formfield\(\s*([^\)]*)\s*\)/_fetchFormFieldValue( $1, $meta )/ges;
+            # We check that only valid field name characters are accepted
+            $listFormat =~ s/\$formfield\(\s*([\w.]*)\s*\)/_fetchFormFieldValue( $1, $meta )/ges;
 
             if ( $indexType eq 'multi' ) {
                 map {
