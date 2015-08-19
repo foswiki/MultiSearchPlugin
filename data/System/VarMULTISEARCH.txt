@@ -9,6 +9,11 @@ The =%<nop>MULTISEARCH%= variable is handled by the MultiSearchPlugin
    | *Parameter* | *Description* | *Default* |
    | ="..."= | Unnamed parameter is not used in this macro | |
    | =web= | Web in which the search is performed | current web |
+   | =topic= | Limit search to topics e.g. <br> \
+=topic="%WEBPREFSTOPIC%"= <br /> =topic="*Bug"= <br> =topic="MyTopic,YourTopic"= <br> \
+A topic, a topic with asterisk wildcards, or a list of topics separated by comma. <br> *Note* this is a list of *topic names* and must *not* include web names. Adding a topic restriction to a search can greatly improve the search performance. | All topics in a web |
+   | =excludetopic= | Exclude topics from search e.g. <br> \
+=excludetopic="Web*"= <br /> =excludetopic="%HOMETOPIC%, <nop>WebChanges"= <br> A topic, a topic with asterisk wildcards, or a list of topics separated by comma.<br> *Note* this is a list of *topic names* and must *not* include web names. | '' |
    | =format= | Format of the resulting search for each index value of interval. Typically defines a bullet point or a table row | '' |
    | =header= | The header is output just before the formatted search results. Typically used for table headers. See tokens used in headers below | |
    | =footer= | The footer is output just after the formatted search results. Typically used for table footers and for summary texts. See tokens used in headers below | |
@@ -44,6 +49,7 @@ Format tokens that can be used in the header and footer strings:
 
 | *Name:* | *Expands To:* |
 | =$ntopics#= | Number of topics found in current web. The total is calculated AFTER all the searches are complete |
+| =$calc(...)= | Perform simple calculations of numbers inside the ( ). Only numbers and +, -, *, and / is allowed. $calc is evaluated after $ntopics# so you can write $calc($ntopics1 - $ntopics2) to get the difference between the two results |
 
    * In addition you can use all the standard format tokens with the =header= and =footer= parameters. See below.
 
@@ -75,6 +81,8 @@ Format tokens that can be used in the format string.
 | =$list#= | The # is the number of the corresponding search number. $list# displays all the values given by the listformat# parameter which are joined together by the string defined by the listseparator# parameter |
 | =$nhits#= | The number of topics found by this search number # for this index value or interval. |
 | =$ntopics#= | $ntopics# is the total of topics found in search# in the accumulated indexes or intervals shown until now. NOTE! For intervals the $ntopics value starts at the number of topics found having an indexfield value below/before the =indexstart= parameter value |
+| =$calc(...)= | Perform simple calculations of numbers inside the ( ). Only numbers and +, -, *, and / is allowed. $calc is evaluated after all other tokens are done so you can write $calc($ntopics1 - $ntopics2) to get the difference between the two results |
+
 
    * In addition you can use all the standard format tokens with the =format= parameter. See below.
 

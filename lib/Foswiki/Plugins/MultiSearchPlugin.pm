@@ -37,7 +37,7 @@ use Time::ParseDate  ();    # For relative dates
 #   v1.2.1_001 -> v1.2.2 -> v1.2.2_001 -> v1.2.3
 #   1.21_001 -> 1.22 -> 1.22_001 -> 1.23
 #
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 
 # $RELEASE is used in the "Find More Extensions" automation in configure.
 # It is a manually maintained string used to identify functionality steps.
@@ -52,7 +52,7 @@ our $VERSION = '1.1';
 # It is preferred to keep this compatible with $VERSION. At some future
 # date, Foswiki will deprecate RELEASE and use the VERSION string.
 #
-our $RELEASE = '18 Aug 2015';
+our $RELEASE = '19 Aug 2015';
 
 # One line description of the module
 our $SHORTDESCRIPTION =
@@ -189,6 +189,44 @@ sub _incrementByInterval {
     
 }
 
+
+# Perform a safe math only calc
+# Note that we use eval below so be careful what you open up for
+# if below is changed
+sub _safeCalc {
+
+    my ($text) = @_;
+    $text = '' unless defined $text;
+
+    # We allow only number and -+/.()
+    $text =~ s/[^\-\+\*\/0-9\.\(\)]+//g;                                                                                       
+    
+    # Untaint
+    $text =~ /(.*)/;
+    $text = $1;
+    
+    # If nothing survived we return an empty string
+    return "" unless ($text);
+    
+    # Capture any errors
+    local $SIG{__DIE__} =  sub { Foswiki::Func::writeDebug( $_[0] ); warn $_[0] };
+    my $result = eval $text;
+
+    # If we capture an error - present it in short form
+    if ($@) {
+        $result = $@;
+        $result =~ s/[\n\r]//g;
+        $result =~ s/\[[^\]]+.*view.*?\:\s?//;         
+        $result =~ s/\s?at \(eval.*?\)\sline\s?[0-9]*\.?\s?//g;
+        $result = "ERROR: $result";
+    }
+    else {
+        $result = 0 unless ($result);    # logical false is "0"
+    }
+    return $result;
+}
+
+
 # _MULTISEARCH
 #
 #  $session= - a reference to the Foswiki session object
@@ -250,6 +288,8 @@ sub _MULTISEARCH {
     my $indexStart    = $params->{indexstart};
     my $indexEnd      = $params->{indexend};
     my $indexStep     = $params->{indexstep} || "1";
+    my $includeTopics = $params->{topic} || '';
+    my $excludeTopics = $params->{excludetopic} || '';
 
     my $resultString = '';
 
@@ -307,10 +347,17 @@ sub _MULTISEARCH {
 
         # First we find all topics that matches the search
         # Note that this plugin always assumes a query type search
+        # Note that the includeTopics and excludeTopics are not documented
+        # in Foswiki::Func::query. I will raise a proposal to document them
         my $matches = Foswiki::Func::query( "$multiSearchStrings[$i]", undef,
-            { web => $paramWeb, casesensitive => 0, files_without_match => 0, 
-              type => 'query' }
-        );
+                                             { web => $paramWeb,
+                                               casesensitive => 0,
+                                               files_without_match => 0,
+                                               type => 'query',
+                                               includeTopics => $includeTopics,
+                                               excludeTopics => $excludeTopics,
+                                             }
+                                          );
 
         # For each found topic we fetch the value of the indexField
         while ( $matches->hasNext ) {
@@ -430,11 +477,12 @@ sub _MULTISEARCH {
         }
         else {
             # Limit intervals to max 1000 in the none date case
-            return "Number of intervals should be less than 1000" if ( abs(($indexEnd-$indexStart)/$indexStep) > 1000 )
+            return "Number of intervals should be less than 1000" if ( abs(($indexEnd-$indexStart)/$indexStep) > 1000 );
+            return "Cannot have an index step of 0 or negative" if ($indexStep <= 0);
         }
 
         return "End value must be larger or later than start value" if ($indexStart >= $indexEnd);
-        return "Cannot have an index step of 0 or negative" if ($indexStep <= 0);
+
         
         # This loops each interval
         for ( my $ix = $indexStart; $ix < $indexEnd; $ix = _incrementByInterval( $ix, $indexStep, $indexType ) ) {
@@ -502,8 +550,13 @@ sub _MULTISEARCH {
     # decode the usual format tokens of header and footer
     $header = Foswiki::Func::decodeFormatTokens($header);
     $footer = Foswiki::Func::decodeFormatTokens($footer);
+    
+    my $finalResult = $header . $resultString . $footer;
 
-    return $header . $resultString . $footer;
+    # After all is said and done we go through any $calc left
+    $finalResult =~ s/\$calc\(\s*([\d+\-\/\*\s]*)\s*\)/_safeCalc($1)/ges;
+
+    return $finalResult;
 }
 
 1;
