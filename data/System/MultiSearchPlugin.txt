@@ -124,6 +124,7 @@ The plugin requires the CPAN library Time::ParseDate. Redhat/Centos users can ru
 ---++ Plugin Info
 
 |  Change History: | <!-- versions below in reverse order -->&nbsp; |
+|  1.3 (08 Dec 2015) | Fixed a crash of the plugin when a search did not return any results |
 |  1.2 (19 Aug 2015) | Added support for topic and excludetopic parameters to improve performance. Added support for the $calc() token to enable simple calculations within the plugin. Added more user input check of the field names |
 |  1.1 (18 Aug 2015) | Better handling when using month as relative time (same date in next month instead of fixed number of seconds).<br />More checks on input values to avoid infinite loops<br />Support of the delay parameter when using MULTISEARCH inside a nested SEARCH or FORMAT |
 |  1.0 (17 Aug 2015) | Initial release |

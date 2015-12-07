@@ -37,7 +37,7 @@ use Time::ParseDate  ();    # For relative dates
 #   v1.2.1_001 -> v1.2.2 -> v1.2.2_001 -> v1.2.3
 #   1.21_001 -> 1.22 -> 1.22_001 -> 1.23
 #
-our $VERSION = '1.2';
+our $VERSION = '1.3';
 
 # $RELEASE is used in the "Find More Extensions" automation in configure.
 # It is a manually maintained string used to identify functionality steps.
@@ -52,7 +52,7 @@ our $VERSION = '1.2';
 # It is preferred to keep this compatible with $VERSION. At some future
 # date, Foswiki will deprecate RELEASE and use the VERSION string.
 #
-our $RELEASE = '19 Aug 2015';
+our $RELEASE = '08 Dec 2015';
 
 # One line description of the module
 our $SHORTDESCRIPTION =
@@ -455,7 +455,8 @@ sub _MULTISEARCH {
             }
         }
 
-        for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {                      
+        for ( my $i = 1 ; $i <= $searchCounter ; $i++ ) {
+            next unless defined $sortedIndexes[$i];                     
             @{$sortedIndexes[$i]} = sort { $a->{indexvalue} <=> $b->{indexvalue} }
                                     @{$sortedIndexes[$i]};
         }
